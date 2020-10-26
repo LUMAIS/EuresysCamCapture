@@ -53,7 +53,7 @@ def loop(grabber, nframes, tpf, outdir, imgfmt):
 		start = time.perf_counter()
 		# timeout in milliseconds
 		with Buffer(grabber, timeout=5000) as buffer:
-			rgb = buffer.convert('RGB8')
+			rgb = buffer.convert('BGR8')  # OpenCV uses BGR colors
 			if not nframes:
 				if not rfont:
 					w = buffer.get_info(BUFFER_INFO_WIDTH, INFO_DATATYPE_SIZET)
@@ -77,8 +77,9 @@ def loop(grabber, nframes, tpf, outdir, imgfmt):
 
 				img = rgb8_to_ndarray(rgb, w, h)
 				if record:
-					_, _, w0, _ = cv2.getWindowImageRect(wTitle)
-					rfont = max(1, w / w0)
+					_, _, w0, h0 = cv2.getWindowImageRect(wTitle)
+					img = cv2.resize(img, (w0, h0))
+					rfont = 1  # max(1, w / w0)
 					cv2.putText(img,'R',
 						(20, 20 + int(24 * rfont)),  # bottomLeftCornerOfText
 						cv2.FONT_HERSHEY_SIMPLEX,
