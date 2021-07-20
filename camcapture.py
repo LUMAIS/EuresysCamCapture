@@ -103,17 +103,17 @@ async def loop(grabber, nframes, tpf, outdir, imgfmt):
 				cv2.imshow(wTitle, img)
 			elif frameCount == nframes:
 				break
+			frameCount += 1
+			# Ensure that fps does not exceed teh required value
+			dt = time.perf_counter() - start
+			if dt < tpf:
+				time.sleep(dt / 1000)
 			# Note: TIF images take 3.5x more space than PNG, but required much less CPU
 			if record:
 				await recordFrame(rgb, outdir, frameCount, imgfmt)
 				print(' ', frameCount, end='', sep='', flush=True)
 			# img = rgb8_to_ndarray(rgb, w, h)
 			# vidout.write(img)
-			frameCount += 1
-			# Ensure that fps does not exceed teh required value
-			dt = time.perf_counter() - start
-			if dt < tpf:
-				time.sleep(dt / 1000)
 	print()  # Ensure newline after the frames output
 
 def run(grabber, nframes, fps, outdir, imgfmt):
