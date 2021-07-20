@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import cv2
+import asyncio
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from enum import Enum, auto
@@ -29,6 +30,18 @@ def rgb8_to_ndarray(rgb, w, h):
 	c = 3  # 3 channels
 	return np.frombuffer(data, count=rgb.get_buffer_size(), dtype=np.uint8).reshape((h,w,c))
 
+async def recordFrame(rgb, outdir, framenum, imgfmt):
+	"""Save a frame to the disk asynchronously
+
+	rgb: Buffer  - egrabber buffer in the required RGB format
+	outdir: str  - output directory
+	framenum: uint  - frame number
+	imgfmt: str  - image format of the output frames
+	"""
+	rgb.save_to_disk(os.path.join(outdir, 'frame.{:03}.{}'.format(framenum, imgfmt)))  # tiff
+
+#def setRoi():
+
 # , vidout
 def loop(grabber, nframes, tpf, outdir, imgfmt):
 	"""Capturing loop
@@ -47,12 +60,13 @@ def loop(grabber, nframes, tpf, outdir, imgfmt):
 		w0 = 1600
 		cv2.namedWindow(wTitle, cv2.WINDOW_NORMAL)
 		rfont = 0
+		#cv2.setMouseCallback(wTitle, setRoi)
 	else:
 		print('Recorded frames:', end='')
 	while True:
 		start = time.perf_counter()
 		# timeout in milliseconds
-		with Buffer(grabber, timeout=5000) as buffer:
+		with Buffer(grabber, timeout=1000) as buffer:
 			rgb = buffer.convert('BGR8')  # OpenCV uses BGR colors
 			if not nframes:
 				if not rfont:
@@ -91,7 +105,7 @@ def loop(grabber, nframes, tpf, outdir, imgfmt):
 				break
 			# Note: TIF images take 3.5x more space than PNG, but required much less CPU
 			if record:
-				rgb.save_to_disk(os.path.join(outdir, 'frame.{:03}.{}'.format(frameCount, imgfmt)))  # tiff
+				recordFrame(rgb, outdir, frameCount, imgfmt)
 				print(' ', frameCount, end='', sep='', flush=True)
 			# img = rgb8_to_ndarray(rgb, w, h)
 			# vidout.write(img)
@@ -100,10 +114,10 @@ def loop(grabber, nframes, tpf, outdir, imgfmt):
 			dt = time.perf_counter() - start
 			if dt < tpf:
 				time.sleep(dt / 1000)
-	print()  # Ensure newline after teh frames output
+	print()  # Ensure newline after the frames output
 
 def run(grabber, nframes, fps, outdir, imgfmt):
-	grabber.realloc_buffers(5)  # 3
+	grabber.realloc_buffers(8)  # 3
 	# w = grabber.get_width()
 	# h = grabber.get_height()
 	# fourcc = cv2.VideoWriter_fourcc(*'DIVX')

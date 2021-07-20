@@ -1,8 +1,9 @@
 # EuresysCamCapture
 A python app for camera capturing from a Euresys grabber (Coaxlink Quad G3): live view with frames recording based on OpenCV.
 
-Author: Artem Lutov &lt;&#108;u&#97;&commat;&#108;ut&#97;n.ch&gt;
-License: [Apache License, Version 2](www.apache.org/licenses/LICENSE-2.0.html)
+Author: Artem Lutov &lt;&#108;u&#97;&commat;&#108;ut&#97;n.ch&gt;  
+License: [Apache License, Version 2](www.apache.org/licenses/LICENSE-2.0.html)  
+Organizations: [UNIFR](https://www.unifr.ch), [Lutov Analytics](https://lutan.ch/)
 
 ## Requirements
 
