@@ -43,7 +43,7 @@ async def recordFrame(rgb, outdir, framenum, imgfmt):
 #def setRoi():
 
 # , vidout
-def loop(grabber, nframes, tpf, outdir, imgfmt):
+async def loop(grabber, nframes, tpf, outdir, imgfmt):
 	"""Capturing loop
 
     grabber  - camera grabber object
@@ -105,7 +105,7 @@ def loop(grabber, nframes, tpf, outdir, imgfmt):
 				break
 			# Note: TIF images take 3.5x more space than PNG, but required much less CPU
 			if record:
-				recordFrame(rgb, outdir, frameCount, imgfmt)
+				await recordFrame(rgb, outdir, frameCount, imgfmt)
 				print(' ', frameCount, end='', sep='', flush=True)
 			# img = rgb8_to_ndarray(rgb, w, h)
 			# vidout.write(img)
@@ -125,7 +125,7 @@ def run(grabber, nframes, fps, outdir, imgfmt):
 	if not os.path.isdir(outdir):
 		os.makedirs(outdir)
 	# out = cv2.VideoWriter(os.path.join(outdir, 'output.avi'), fourcc, fps, (w,  h))
-	loop(grabber, nframes, 1000 / fps, outdir, imgfmt)
+	asyncio.run(loop(grabber, nframes, 1000 / fps, outdir, imgfmt))
 	if not nframes:
 		cv2.destroyAllWindows()
 
@@ -146,4 +146,5 @@ if __name__ == '__main__':
 
 	gentl = EGenTL()
 	grabber = EGrabber(gentl)
+
 	run(grabber, args.nframes, args.fps, args.outp_dir, args.img_format)
