@@ -11,6 +11,7 @@ import sys
 import time
 import cv2
 import asyncio
+import imutils
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from enum import Enum, auto
@@ -38,7 +39,12 @@ async def recordFrame(rgb, outdir, framenum, imgfmt):
 	framenum: uint  - frame number
 	imgfmt: str  - image format of the output frames
 	"""
-	rgb.save_to_disk(os.path.join(outdir, 'frame.{:03}.{}'.format(framenum, imgfmt)))  # tiff
+	print(type(rgb))
+	if isinstance(rgb, (np.ndarray, type(None))):
+		cv2.imwrite(os.path.join(outdir, 'frame.{:03}.{}'.format(framenum, imgfmt)), rgb)
+	else:
+		rgb.save_to_disk(os.path.join(outdir, 'frame.{:03}.{}'.format(framenum, imgfmt)))  # tiff
+
 
 #def setRoi():
 
@@ -55,6 +61,7 @@ async def loop(grabber, nframes, tpf, outdir, imgfmt):
 	frameCount = 0
 	record = nframes > 0  # Whether to record the capturing frame as images
 	grabber.start()
+
 	if not nframes:
 		wTitle = 'Press ESC to exit, SPACEBAR to record'
 		w0 = 1600
@@ -116,16 +123,94 @@ async def loop(grabber, nframes, tpf, outdir, imgfmt):
 			# vidout.write(img)
 	print()  # Ensure newline after the frames output
 
+async def wloop(nframes, tpf, outdir, imgfmt):
+	"""Capturing loop
+
+    nframes: int  - the number of frames to be captured in the non-GUI mode;
+    tpf: float  - min time per frame in milli seconds
+    outdir: str  - output directory for the resulting frames
+    imgfmt: str  - image format of the output frames
+    """
+	wTitle = 'Press ESC to exit, SPACEBAR to record'
+	frameCount = 0
+	record = nframes > 0  # Whether to record the capturing frame as images
+
+	if not nframes:
+		wTitle = 'Press ESC to exit, SPACEBAR to record'
+		w0 = 1600
+		cv2.namedWindow(wTitle, cv2.WINDOW_NORMAL)
+		rfont = 0
+		#cv2.setMouseCallback(wTitle, setRoi)
+	else:
+		print('Recorded frames:', end='')
+	while True:
+		start = time.perf_counter()
+		# timeout in milliseconds
+		vid = cv2.VideoCapture(0)
+		ret, frame = vid.read()
+		img = frame.copy()
+		if not nframes:
+			if not rfont:
+				h, w = frame.shape[:2]
+				rfont = w / w0
+				cv2.resizeWindow(wTitle, w0, int(h / rfont))
+			#img = cv2.resize(frame, (w0, int(h / rfont)))
+			cv2.imshow(wTitle, img)
+
+			key = cv2.waitKey(1) & 0xFF
+			# Quit: escape, e or q
+			if key in (27, ord('e'), ord('q')):
+				break
+			## Pause: spacebar or p
+			#elif key in (32, ord('p')):
+			#	cv2.waitKey(-1)
+			# Record: enter, spacebar or r
+			elif key in (10, 32, ord('r')):
+				record = not record
+				print(('' if record else '\n') + 'Recording: ',
+					os.path.normpath(outdir) + '/' if record else 'OFF')
+				if record:
+					print('Recorded frames:', end='')
+			img = frame.copy()
+			if record:
+				_, _, w0, h0 = cv2.getWindowImageRect(wTitle)
+				img = cv2.resize(img, (w0, h0))
+				rfont = 1  # max(1, w / w0)
+				cv2.putText(img,'R',
+					(20, 20 + int(24 * rfont)),  # bottomLeftCornerOfText
+					cv2.FONT_HERSHEY_SIMPLEX,
+					rfont,  # Font size
+					(7, 7, 255),  # Color
+					1 + round(rfont)) # Line thickness, px
+			cv2.imshow(wTitle, img)
+		elif frameCount == nframes:
+			break
+		frameCount += 1
+		# Ensure that fps does not exceed teh required value
+		dt = time.perf_counter() - start
+		if dt < tpf:
+			time.sleep(dt / 1000)
+		# Note: TIF images take 3.5x more space than PNG, but required much less CPU
+		if record:
+			await recordFrame(img, outdir, frameCount, imgfmt)
+			print(' ', frameCount, end='', sep='', flush=True)
+
+	print()  # Ensure newline after the frames output
+
 def run(grabber, nframes, fps, outdir, imgfmt):
-	grabber.realloc_buffers(8)  # 3
-	# w = grabber.get_width()
-	# h = grabber.get_height()
-	# fourcc = cv2.VideoWriter_fourcc(*'DIVX')
-	# outdir = os.path.splitext(__file__)[0] + '.output'
+	if grabber:
+		grabber.realloc_buffers(8)  # 3
+		# w = grabber.get_width()
+		# h = grabber.get_height()
+		# fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+		# outdir = os.path.splitext(__file__)[0] + '.output'
 	if not os.path.isdir(outdir):
 		os.makedirs(outdir)
 	# out = cv2.VideoWriter(os.path.join(outdir, 'output.avi'), fourcc, fps, (w,  h))
-	asyncio.run(loop(grabber, nframes, 1000 / fps, outdir, imgfmt))
+	if grabber:
+		asyncio.run(loop(grabber, nframes, 1000 / fps, outdir, imgfmt))
+	else:
+		asyncio.run(wloop(nframes, 1000 / fps, outdir, imgfmt))
 	if not nframes:
 		cv2.destroyAllWindows()
 
@@ -142,9 +227,13 @@ if __name__ == '__main__':
 		help='The number of frames to be captured, being started without any Graphical User Interface')
 	parser.add_argument('-o', '--outp-dir', default='imgs',
 		help='Output directory for the captured images')
+	parser.add_argument('-webcam', '--webcam', type=bool, default=False,
+						help='Is true if you need to use webCamera')
 	args = parser.parse_args()
 
-	gentl = EGenTL()
-	grabber = EGrabber(gentl)
-
+	if not args.webcam:
+		gentl = EGenTL()
+		grabber = EGrabber(gentl)
+	else:
+		grabber = None
 	run(grabber, args.nframes, args.fps, args.outp_dir, args.img_format)
