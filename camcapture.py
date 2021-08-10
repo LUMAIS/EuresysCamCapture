@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 :Description: Camera capturing app for a Eursys Coaxlink camera grabber
-
 :Authors: (c) Artem Lutov <lua@lutan.ch>
 :Date: 2020-10-21
 """
@@ -11,11 +10,22 @@ import sys
 import time
 import cv2
 import asyncio
-import imutils
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from enum import Enum, auto
 from egrabber import *
+
+# true if mouse is pressed
+drawing = False
+
+# coordinates (x0, y0), (x1, y1) of the top left and
+# bottom right corners to draw a ROI
+Rect = [(0, 0), (2, 2)]
+
+
+#True if rectangle should be drawn on a screen
+#False if Rbutton pressed or rectangle was not drawn yet
+mode = False
 
 
 class ImageFormat(Enum):
@@ -33,25 +43,41 @@ def rgb8_to_ndarray(rgb, w, h):
 
 async def recordFrame(rgb, outdir, framenum, imgfmt):
 	"""Save a frame to the disk asynchronously
-
-	rgb: Buffer  - egrabber buffer in the required RGB format
+	-------------rgb: Buffer  - egrabber buffer in the required RGB format
+	rgb: numpy.ndarray
 	outdir: str  - output directory
 	framenum: uint  - frame number
 	imgfmt: str  - image format of the output frames
 	"""
-	print(type(rgb))
-	if isinstance(rgb, (np.ndarray, type(None))):
-		cv2.imwrite(os.path.join(outdir, 'frame.{:03}.{}'.format(framenum, imgfmt)), rgb)
-	else:
-		rgb.save_to_disk(os.path.join(outdir, 'frame.{:03}.{}'.format(framenum, imgfmt)))  # tiff
+	if mode:
+		rgb = rgb[Rect[-2][1]:Rect[-1][1], Rect[-2][0]:Rect[-1][0]]
+	cv2.imwrite(os.path.join(outdir, 'frame.{:03}.{}'.format(framenum, imgfmt)), rgb)
+	# if isinstance(rgb, (np.ndarray, type(None))):
+	# 	cv2.imwrite(os.path.join(outdir, 'frame.{:03}.{}'.format(framenum, imgfmt)), rgb)
+	# else:
+	# 	rgb.save_to_disk(os.path.join(outdir, 'frame.{:03}.{}'.format(framenum, imgfmt)))  # tiff
 
 
-#def setRoi():
+def setRoi(event, x, y, flags, params):
+	global drawing, Rect, mode
+	if event == cv2.EVENT_LBUTTONDOWN:
+		mode = True
+		drawing = True
+		Rect[0], Rect[1] = (x, y), (x, y)
+	elif event == cv2.EVENT_MOUSEMOVE and drawing:
+		Rect[1] = (x, y)
+
+	elif event == cv2.EVENT_LBUTTONUP:
+		mode = True
+		drawing = False
+		Rect[1] = (x, y)
+
+	elif event == cv2.EVENT_RBUTTONUP:
+		mode = False
 
 # , vidout
 async def loop(grabber, nframes, tpf, outdir, imgfmt):
 	"""Capturing loop
-
     grabber  - camera grabber object
     nframes: int  - the number of frames to be captured in the non-GUI mode;
     tpf: float  - min time per frame in milli seconds
@@ -67,7 +93,7 @@ async def loop(grabber, nframes, tpf, outdir, imgfmt):
 		w0 = 1600
 		cv2.namedWindow(wTitle, cv2.WINDOW_NORMAL)
 		rfont = 0
-		#cv2.setMouseCallback(wTitle, setRoi)
+		cv2.setMouseCallback(wTitle, setRoi)
 	else:
 		print('Recorded frames:', end='')
 	while True:
@@ -117,20 +143,18 @@ async def loop(grabber, nframes, tpf, outdir, imgfmt):
 				time.sleep(dt / 1000)
 			# Note: TIF images take 3.5x more space than PNG, but required much less CPU
 			if record:
-				await recordFrame(rgb, outdir, frameCount, imgfmt)
+				#await recordFrame(rgb, outdir, frameCount, imgfmt)
+				img = rgb8_to_ndarray(rgb, w, h)
+				await recordFrame(img, outdir, frameCount, imgfmt)
 				print(' ', frameCount, end='', sep='', flush=True)
 			# img = rgb8_to_ndarray(rgb, w, h)
 			# vidout.write(img)
 	print()  # Ensure newline after the frames output
 
 async def wloop(nframes, tpf, outdir, imgfmt):
-	"""Capturing loop
-
-    nframes: int  - the number of frames to be captured in the non-GUI mode;
-    tpf: float  - min time per frame in milli seconds
-    outdir: str  - output directory for the resulting frames
-    imgfmt: str  - image format of the output frames
-    """
+	"""Capturing loop for webcamera
+	does the same as a previous function
+	"""
 	wTitle = 'Press ESC to exit, SPACEBAR to record'
 	frameCount = 0
 	record = nframes > 0  # Whether to record the capturing frame as images
@@ -140,13 +164,13 @@ async def wloop(nframes, tpf, outdir, imgfmt):
 		w0 = 1600
 		cv2.namedWindow(wTitle, cv2.WINDOW_NORMAL)
 		rfont = 0
-		#cv2.setMouseCallback(wTitle, setRoi)
+		cv2.setMouseCallback(wTitle, setRoi)
 	else:
 		print('Recorded frames:', end='')
+	vid = cv2.VideoCapture(0)
 	while True:
 		start = time.perf_counter()
 		# timeout in milliseconds
-		vid = cv2.VideoCapture(0)
 		ret, frame = vid.read()
 		img = frame.copy()
 		if not nframes:
@@ -155,6 +179,8 @@ async def wloop(nframes, tpf, outdir, imgfmt):
 				rfont = w / w0
 				cv2.resizeWindow(wTitle, w0, int(h / rfont))
 			#img = cv2.resize(frame, (w0, int(h / rfont)))
+			if mode:
+				img = cv2.rectangle(img, Rect[0], Rect[1], (0, 255, 0), 0)
 			cv2.imshow(wTitle, img)
 
 			key = cv2.waitKey(1) & 0xFF
@@ -192,9 +218,9 @@ async def wloop(nframes, tpf, outdir, imgfmt):
 			time.sleep(dt / 1000)
 		# Note: TIF images take 3.5x more space than PNG, but required much less CPU
 		if record:
-			await recordFrame(img, outdir, frameCount, imgfmt)
+			await recordFrame(frame, outdir, frameCount, imgfmt)
 			print(' ', frameCount, end='', sep='', flush=True)
-
+	vid.release()
 	print()  # Ensure newline after the frames output
 
 def run(grabber, nframes, fps, outdir, imgfmt):
@@ -204,6 +230,7 @@ def run(grabber, nframes, fps, outdir, imgfmt):
 		# h = grabber.get_height()
 		# fourcc = cv2.VideoWriter_fourcc(*'DIVX')
 		# outdir = os.path.splitext(__file__)[0] + '.output'
+	# os.chdir(r'E:\\')
 	if not os.path.isdir(outdir):
 		os.makedirs(outdir)
 	# out = cv2.VideoWriter(os.path.join(outdir, 'output.avi'), fourcc, fps, (w,  h))
