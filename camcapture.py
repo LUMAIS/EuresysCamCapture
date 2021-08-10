@@ -123,6 +123,8 @@ async def loop(grabber, nframes, tpf, outdir, imgfmt):
 						print('Recorded frames:', end='')
 
 				img = rgb8_to_ndarray(rgb, w, h)
+				if mode:
+					img = cv2.rectangle(img, Rect[0], Rect[1], (0, 255, 0), 0)
 				if record:
 					_, _, w0, h0 = cv2.getWindowImageRect(wTitle)
 					img = cv2.resize(img, (w0, h0))
