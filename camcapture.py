@@ -11,6 +11,7 @@ import time
 import cv2
 import asyncio
 import numpy as np
+from functools import partial
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from enum import Enum, auto
 from egrabber import *
@@ -25,7 +26,8 @@ roiRect = None
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 initVideo = None
 vidout = None
-
+wTitle = 'Press ESC to exit, SPACEBAR to record'  # Main window
+tbExposure = "Exposure time"  # Exposure trackbar in the main window
 
 class ImageFormat(Enum):
 	"""Image formats to store the capturing frames"""
@@ -108,6 +110,9 @@ def setRoi(event, x, y, flags, params):
 		drawingRect[1] = (x, y)
 
 
+def setExposure(grabber, val):
+	grabber.remote.set('ExposureTime', val * 1e3)
+
 # , vidout
 async def loop(grabber, nframes, tpf, outdir, imgfmt, winw):
 	"""Capturing loop
@@ -125,11 +130,13 @@ async def loop(grabber, nframes, tpf, outdir, imgfmt, winw):
 	grabber.start()
 
 	if not nframes:
-		wTitle = 'Press ESC to exit, SPACEBAR to record'
 		w0 = winw
 		cv2.namedWindow(wTitle, cv2.WINDOW_NORMAL)
 		rfont = 0
 		cv2.setMouseCallback(wTitle, setRoi)
+		# Set exposition control
+		cv2.createTrackbar(tbExposure, wTitle, round(1e3 * 0.005), round(1e3 * tpf), partial(setExposure, grabber))
+		cv2.setTrackbarPos(tbExposure, wTitle, round(grabber.remote.get('ExposureTime') / 1e3))
 	else:
 		print('Recorded frames:', end='')
 	videoOutp = imgfmt == str(ImageFormat.MP4)
@@ -166,7 +173,8 @@ async def loop(grabber, nframes, tpf, outdir, imgfmt, winw):
 					img = img.copy()  # Copy image to not draw in over the original frame
 				if roiRect or drawingRect:
 					rc = drawingRect if drawingRect else roiRect
-					img = cv2.rectangle(img, rc[0], rc[1], (0, 255, 0))
+					rt = max(1, round(rfont))
+					img = cv2.rectangle(img, rc[0], rc[1], (0, 255, 0), rt)
 				if record:
 					if initVideo and videoOutp:
 						if roiRect:
@@ -217,12 +225,10 @@ async def wloop(vid, nframes, tpf, outdir, imgfmt, winw):
     winw: int, >= 1  - Initial wide of the GUI window in pixels
     """
 	global initVideo, vidout
-	wTitle = 'Press ESC to exit, SPACEBAR to record'
 	frameCount = 0
 	record = nframes > 0  # Whether to record the capturing frame as images
 
 	if not nframes:
-		wTitle = 'Press ESC to exit, SPACEBAR to record'
 		w0 = winw
 		cv2.namedWindow(wTitle, cv2.WINDOW_NORMAL)
 		rfont = 0
@@ -263,7 +269,8 @@ async def wloop(vid, nframes, tpf, outdir, imgfmt, winw):
 			# img = frame.copy()
 			if roiRect or drawingRect:
 				rc = drawingRect if drawingRect else roiRect
-				img = cv2.rectangle(img, rc[0], rc[1], (0, 255, 0))
+				rt = max(1, round(rfont))
+				img = cv2.rectangle(img, rc[0], rc[1], (0, 255, 0), rt)
 			if record:
 				if initVideo and videoOutp:
 					if roiRect:
@@ -321,6 +328,8 @@ if __name__ == '__main__':
 		help='Initial wide of the GUI window in pixels')
 	parser.add_argument('-r', '--resolution', type=str, default=None,
 		help='Show ("x") or set ("<W>x<H>") camera resolution in the format: <WIDTH>x<HEIGHT>, e.g., 800x600')
+	parser.add_argument('-e', '--exposure', type=str, default=None,
+		help='Show ("x") or set camera exposure mode and optional exposure time in ms, e.g. for FPS >= 25: -e "Timed 40"')
 	args = parser.parse_args()
 	
 	camres = None   
@@ -337,13 +346,52 @@ if __name__ == '__main__':
 	try:
 		gentl = EGenTL()
 		grabber = EGrabber(gentl, 0, args.camera)  # EGrabber(gentl, card_ix, device_ix)
-		if camres:
-			print('Setting camera resolution: ', camres)
-			grabber.remote.set('Width', camres[0])
-			grabber.remote.set('Height', camres[1])
-		elif camres is not None:
-			print('Camera resolution: {}x{}'.format(grabber.remote.get('Width'), grabber.remote.get('Height')))
+		# Set exposition time by FPS:
+		# grabber.remote.set('ExposureTime', 1e6 / (args.fps * 2))
+
+		if camres is not None or args.exposure is not None:
+			if camres:
+				print('Setting camera resolution: ', camres)
+				grabber.remote.set('Width', camres[0])
+				grabber.remote.set('Height', camres[1])
+			elif camres is not None:
+				print('Camera resolution: {}x{}'.format(grabber.remote.get('Width'), grabber.remote.get('Height')))
+			if args.exposure is not None:
+				if args.exposure != 'x':
+					camexp = args.exposure.split(None, 1)
+					grabber.remote.set("ExposureMode", camexp[0])
+					if len(camexp) >= 2: # and camexp[0] == 'Timed':
+						exptime = float(camexp[1])
+						assert exptime <= 1000. / args.fps, 'Exposition time is too large for the specified FPS'
+						grabber.remote.set('ExposureTime', exptime * 1e3)  # Note: internal exposition time is micro sec
+				else:
+					print('Camera exposure mode: {} {}'.format(grabber.remote.get('ExposureMode'), grabber.remote.get('ExposureTime')/1e3))
 			exit(0)
+
+		# # Set default configuration
+		# # Camera configuration
+		# grabber.remote.set('TriggerMode', 'Off');  # Off;  # Might not be supported in some cameras
+		# grabber.remote.set('TriggerSource', 'Line' + str(args.camera));  # Line0, CoaXPress_Trigger_Input
+		# grabber.remote.set('ExposureMode', 'Free_Run_Programmable');  # Free_Run_Programmable, Timed
+		# # grabber.remote.set('ExposureTime', 1e6 / args.fps)
+		# # Frame grabber configuration
+		# grabber.device.set('CameraControlMethod', 'NC');  # 'NC'
+		# # grabber.device.set('CycleTriggerSource', 'Immediate');
+		# # grabber.device.set('CycleTargetPeriod', 1e6 / args.fps);
+
+		# WARNING: such configuration causes exception on capturing (at least, when no strobing signal is raised)
+		# # Camera configuration
+		# grabber.remote.set('TriggerMode', 'On');  # Off;  # Might not be supported in some cameras
+		# grabber.remote.set('TriggerSource', 'CXPin');  # Line0, CoaXPress_Trigger_Input
+		# grabber.remote.set('ExposureMode', 'TriggerWidth');  # Free_Run_Programmable, Timed
+		# # grabber.remote.set('ExposureTime', 1e6 / args.fps)
+		# # Frame grabber configuration
+		# grabber.device.set('CameraControlMethod', 'RG');  # 'NC'
+		# # grabber.device.set('CycleTriggerSource', 'Immediate');
+		# # grabber.device.set('CycleTargetPeriod', 1e6 / args.fps);
+		# # StrobeDuration: 1000,
+		# # StrobeDelay: 100,
+
 		grabber.realloc_buffers(3)  # 3, 8
 		asyncio.run(loop(grabber, args.nframes, 1. / args.fps, args.outp_dir, args.img_format, args.wnd_width))
 	except generated.cEGrabber.GenTLException as err:
