@@ -173,7 +173,7 @@ async def loop(grabber, nframes, tpf, outdir, imgfmt, winw):
 					img = img.copy()  # Copy image to not draw in over the original frame
 				if roiRect or drawingRect:
 					rc = drawingRect if drawingRect else roiRect
-					rt = max(1, round(rfont))
+					rt = max(1, int(rfont) + 1)
 					img = cv2.rectangle(img, rc[0], rc[1], (0, 255, 0), rt)
 				if record:
 					if initVideo and videoOutp:
@@ -269,7 +269,7 @@ async def wloop(vid, nframes, tpf, outdir, imgfmt, winw):
 			# img = frame.copy()
 			if roiRect or drawingRect:
 				rc = drawingRect if drawingRect else roiRect
-				rt = max(1, round(rfont))
+				rt = max(1, int(rfont) + 1)
 				img = cv2.rectangle(img, rc[0], rc[1], (0, 255, 0), rt)
 			if record:
 				if initVideo and videoOutp:
