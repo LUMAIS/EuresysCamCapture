@@ -48,6 +48,10 @@ optional arguments:
                         Show ("x") or set ("<W>x<H>") camera resolution in the
                         format: <WIDTH>x<HEIGHT>, e.g., 800x600 (default:
                         None)
+  -e EXPOSURE, --exposure EXPOSURE
+                        Show ("x") or set camera exposure mode and
+                        optional exposure time in ms, e.g. for FPS >= 25:
+                        -e "Timed 40" (default: None)
 ```
 
 ### GUI Mode

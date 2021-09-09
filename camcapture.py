@@ -397,14 +397,27 @@ if __name__ == '__main__':
 	except generated.cEGrabber.GenTLException as err:
 		# Fallback to a standard web camera
 		vid = cv2.VideoCapture(0)
-		if camres:
-			print('Setting camera resolution: ', camres)
-			vid.set(cv2.CAP_PROP_FRAME_WIDTH, camres[0])
-			vid.set(cv2.CAP_PROP_FRAME_HEIGHT, camres[1])
-		elif camres is not None:
-			print('Camera resolution: {}x{}'.format(
-				int(vid.get(cv2.CAP_PROP_FRAME_WIDTH)), int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+
+		if camres is not None or args.exposure is not None:
+			if camres:
+				print('Setting camera resolution: ', camres)
+				vid.set(cv2.CAP_PROP_FRAME_WIDTH, camres[0])
+				vid.set(cv2.CAP_PROP_FRAME_HEIGHT, camres[1])
+			elif camres is not None:
+				print('Camera resolution: {}x{}'.format(
+					int(vid.get(cv2.CAP_PROP_FRAME_WIDTH)), int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+			if args.exposure is not None:
+				if args.exposure != 'x':
+					camexp = args.exposure.split(None, 1)
+					grabber.remote.set("ExposureMode", camexp[0])
+					if len(camexp) >= 2: # and camexp[0] == 'Timed':
+						exptime = float(camexp[1])
+						assert exptime <= 1. / args.fps, 'Exposition time is too large for the specified FPS'
+						vid.set(cv2.CAP_PROP_EXPOSURE, 40)
+				else:
+					print('Camera exposure: {}'.format(vid.get(cv2.CAP_PROP_EXPOSURE)))
 			exit(0)
+
 		vid.set(cv2.CAP_PROP_FPS, args.fps)
 		asyncio.run(wloop(vid, args.nframes, 1. / args.fps, args.outp_dir, args.img_format, args.wnd_width))
 		vid.release()
