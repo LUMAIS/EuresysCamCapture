@@ -11,6 +11,7 @@ import time
 import cv2
 import asyncio
 import numpy as np
+import ctypes as ct
 from functools import partial
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from enum import Enum, auto
@@ -41,7 +42,7 @@ class ImageFormat(Enum):
 
 
 def rgb8_to_ndarray(rgb, w, h):
-	data = cast(rgb.get_address(), POINTER(c_ubyte * rgb.get_buffer_size())).contents
+	data = ct.cast(rgb.get_address(), ct.POINTER(ct.c_ubyte * rgb.get_buffer_size())).contents
 	c = 3  # 3 channels
 	return np.frombuffer(data, count=rgb.get_buffer_size(), dtype=np.uint8).reshape((h,w,c))
 
