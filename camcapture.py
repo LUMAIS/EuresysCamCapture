@@ -396,7 +396,7 @@ if __name__ == '__main__':
 		grabber.realloc_buffers(3)  # 3, 8
 		asyncio.run(loop(grabber, args.nframes, 1. / args.fps, args.outp_dir, args.img_format, args.wnd_width))
 	except generated.GenTLException as err:  # Note: earlier it was generated.cEGrabber.GenTLException
-		if err is egrabber.generated.errors.TimeoutException:
+		if err is generated.errors.TimeoutException:
 			print('Grabber timeout exception: {}.\nCamera configuration should be set to the non-triggering mode, which can be performed via genicam-browser or artemis (`./artemis --camera-id 0`)'.format(err))
 			raise err
 		# Fallback to a standard web camera
