@@ -328,7 +328,7 @@ if __name__ == '__main__':
 	parser.add_argument('-w', '--wnd-width', type=int, default=1600,
 		help='Initial wide of the GUI window in pixels')
 	parser.add_argument('-r', '--resolution', type=str, default=None,
-		help='Show ("x") or set ("<W>x<H>") camera resolution in the format: <WIDTH>x<HEIGHT>, e.g., 800x600')
+		help='Show ("x") or set ("<W>x<H>") camera resolution in the format: <WIDTH>x<HEIGHT>, e.g., 800x600. ATTENTION: the dimensions must be multiple to 32')
 	parser.add_argument('-e', '--exposure', type=str, default=None,
 		help='Show ("x") or set camera exposure mode and optional exposure time in ms, e.g. for FPS >= 25: -e "Timed 40"')
 	args = parser.parse_args()
