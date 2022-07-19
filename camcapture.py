@@ -367,7 +367,9 @@ if __name__ == '__main__':
 						grabber.remote.set('ExposureTime', exptime * 1e3)  # Note: internal exposition time is micro sec
 				else:
 					print('Camera exposure mode: {} {}'.format(grabber.remote.get('ExposureMode'), grabber.remote.get('ExposureTime')/1e3))
-			exit(0)
+			# Exit when we only setup or show some camera parameters
+			if len(args) == (camres is not None) + (args.exposure is not None):
+				exit(0)
 
 		# # Set default configuration
 		# # Camera configuration
