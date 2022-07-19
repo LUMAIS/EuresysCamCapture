@@ -328,7 +328,7 @@ if __name__ == '__main__':
 	parser.add_argument('-w', '--wnd-width', type=int, default=1600,
 		help='Initial wide of the GUI window in pixels')
 	parser.add_argument('-r', '--resolution', type=str, default=None,
-		help='Show ("x") or set ("<W>x<H>") camera resolution in the format: <WIDTH>x<HEIGHT>, e.g., 800x600')
+		help='Show ("x") or set ("<W>x<H>") camera resolution in the format: <WIDTH>x<HEIGHT>, e.g., 800x600. ATTENTION: the dimensions must be multiple to 32')
 	parser.add_argument('-e', '--exposure', type=str, default=None,
 		help='Show ("x") or set camera exposure mode and optional exposure time in ms, e.g. for FPS >= 25: -e "Timed 40"')
 	args = parser.parse_args()
@@ -367,7 +367,9 @@ if __name__ == '__main__':
 						grabber.remote.set('ExposureTime', exptime * 1e3)  # Note: internal exposition time is micro sec
 				else:
 					print('Camera exposure mode: {} {}'.format(grabber.remote.get('ExposureMode'), grabber.remote.get('ExposureTime')/1e3))
-			exit(0)
+			# Exit when we only setup or show some camera parameters
+			if len(args) == (camres is not None) + (args.exposure is not None):
+				exit(0)
 
 		# # Set default configuration
 		# # Camera configuration
@@ -395,7 +397,10 @@ if __name__ == '__main__':
 
 		grabber.realloc_buffers(3)  # 3, 8
 		asyncio.run(loop(grabber, args.nframes, 1. / args.fps, args.outp_dir, args.img_format, args.wnd_width))
-	except generated.cEGrabber.GenTLException as err:
+	except generated.GenTLException as err:  # Note: earlier it was generated.cEGrabber.GenTLException
+		if err is generated.errors.TimeoutException:
+			print('Grabber timeout exception: {}.\nCamera configuration should be set to the non-triggering mode, which can be performed via genicam-browser or artemis (`./artemis --camera-id 0`)'.format(err))
+			raise err
 		# Fallback to a standard web camera
 		vid = cv2.VideoCapture(0)
 
